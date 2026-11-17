@@ -5,6 +5,15 @@ const app = document.getElementById("app");
 const who = document.getElementById("who");
 let S = null; // everything the signed-in user can see
 let flash = null; // one-time message shown on the next page draw
+let CFG = null; // from /api/config: { local: true } in demo mode, else Clerk's public key
+
+// Demo mode remembers which sample user you picked (only in this browser).
+const demoUser = (v) => {
+  try {
+    if (v === undefined) return localStorage.getItem("demoUser") || "";
+    v ? localStorage.setItem("demoUser", v) : localStorage.removeItem("demoUser");
+  } catch { return ""; }
+};
 
 // ---------- small helpers ----------
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -18,7 +27,7 @@ async function call(path, body) {
     const token = window.Clerk?.session ? await window.Clerk.session.getToken() : "";
     const res = await fetch(path, {
       method: body ? "POST" : "GET",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "X-Demo-User": demoUser() },
       body: body ? JSON.stringify(body) : undefined,
     });
     const data = await res.json();
@@ -71,9 +80,22 @@ function loginPage() {
   window.Clerk.mountSignIn(document.getElementById("signin"));
 }
 
+// Demo mode sign-in: pick one of the sample users.
+async function demoLoginPage() {
+  who.innerHTML = "";
+  const users = await call("/api/demo-users");
+  const group = (role, label) => `<h2>${label}</h2><div class="row">` +
+    users.filter((u) => u.role === role).map((u) => `<button data-uid="${u.id}">${esc(u.name)}</button>`).join("") + `</div>`;
+  app.innerHTML = `<h1>Welcome to Dempo Learn</h1>
+    <div class="msg ok">Local demo mode: no Supabase or Clerk keys are set, so pick who you want to be.
+    Data is saved in <code>data/local-db.json</code> on this computer.</div>
+    ${group("student", "Students")}${group("teacher", "Teachers")}${group("admin", "Admin")}`;
+  app.querySelectorAll("[data-uid]").forEach((b) => (b.onclick = () => { demoUser(b.dataset.uid); location.hash = "#/"; load(); }));
+}
+
 // Load Clerk's script using the public key the server gives us.
 async function startClerk() {
-  const { clerkPublishableKey: pk } = await call("/api/config");
+  const pk = CFG.clerkPublishableKey;
   const frontendApi = atob(pk.split("_")[2]).slice(0, -1); // the key encodes Clerk's address
   await new Promise((ok, fail) => {
     const s = document.createElement("script");
@@ -236,7 +258,9 @@ function assignmentPage(id) {
 function render() {
   if (!S) return;
   who.innerHTML = `<span>${esc(S.me.name)} · ${S.me.role}</span><button class="link" id="out">Sign out</button>`;
-  document.getElementById("out").onclick = () => window.Clerk.signOut();
+  document.getElementById("out").onclick = () => {
+    if (CFG.local) { demoUser(null); S = null; location.hash = "#/"; load(); } else window.Clerk.signOut();
+  };
   const [, kind, id, tab] = location.hash.split("/");
   if (kind === "c") coursePage(Number(id), tab || "stream");
   else if (kind === "a") assignmentPage(Number(id));
@@ -247,11 +271,17 @@ function render() {
 
 async function load() {
   try {
-    if (!window.Clerk) await startClerk();
-    if (!window.Clerk.user) { S = null; return loginPage(); }
+    if (!CFG) CFG = await call("/api/config");
+    if (CFG.local) {
+      if (!demoUser()) { S = null; return demoLoginPage(); }
+    } else {
+      if (!window.Clerk) await startClerk();
+      if (!window.Clerk.user) { S = null; return loginPage(); }
+    }
     S = await call("/api/state");
     render();
   } catch (e) {
+    if (CFG?.local && e.message.includes("pick a demo user")) { demoUser(null); return demoLoginPage(); }
     app.innerHTML = `<div class="msg error">${esc(e.message)}</div>`;
   }
 }
