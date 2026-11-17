@@ -18,7 +18,9 @@ A small learning platform for a college: teachers set work, students turn it in,
 ## Quick look (no setup)
 If `.env.local` has no Supabase/Clerk keys, the app starts in **local demo mode**: run `npm start`,
 open http://localhost:5600 and pick a sample student, teacher or admin. Data is kept in `data/local-db.json`
-(delete it to reset). Demo mode is switched off on Vercel.
+(delete it to reset). On Vercel, demo mode also runs while no keys are set: data is kept in `/tmp` and
+resets itself, and anyone can pick any user (including admin), so use it only for showing sample data.
+Add the Supabase and Clerk keys in Vercel to switch to real sign-in.
 
 ## Setup (one time)
 

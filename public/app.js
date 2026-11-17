@@ -87,8 +87,8 @@ async function demoLoginPage() {
   const group = (role, label) => `<h2>${label}</h2><div class="row">` +
     users.filter((u) => u.role === role).map((u) => `<button data-uid="${u.id}">${esc(u.name)}</button>`).join("") + `</div>`;
   app.innerHTML = `<h1>Welcome to Dempo Learn</h1>
-    <div class="msg ok">Local demo mode: no Supabase or Clerk keys are set, so pick who you want to be.
-    Data is saved in <code>data/local-db.json</code> on this computer.</div>
+    <div class="msg ok">Demo mode: pick who you want to be. Everything here is sample data,
+    and it may reset at any time.</div>
     ${group("student", "Students")}${group("teacher", "Teachers")}${group("admin", "Admin")}`;
   app.querySelectorAll("[data-uid]").forEach((b) => (b.onclick = () => { demoUser(b.dataset.uid); location.hash = "#/"; load(); }));
 }
